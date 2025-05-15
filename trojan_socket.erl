@@ -119,9 +119,11 @@ log(Level, FormatString, Args) ->
         _       -> random_color()     % 其他级别随机选色
     end,
 
-    % 输出带颜色的格式化日志
+    % 这里对 Args 里的每个参数都 flatten 一下，保证 ~s 能正常打印中英文
+    % 只 flatten 字符串类型参数，其他类型保持原样
+    SafeArgs = [if is_list(A) -> lists:flatten(A); true -> A end || A <- Args],
     io:format(Color ++ "~s [~s] " ++ FormatString ++ ?ANSI_RESET ++ "~n", 
-             [Timestamp, LevelStr | Args]).
+             [Timestamp, LevelStr | SafeArgs]).
 
 % 处理新的客户端连接
 handle_connection(Socket) ->
