@@ -128,6 +128,40 @@ Erlang/OTP 27 [erts-15.2.6] [source] [64-bit] [smp:8:8] [ds:8:8:10] [async-threa
 
 ```
 
+-----
+## 编译逻辑算法
+#### 1. 后台逻辑
+![后台逻辑](./assets/sequence_backend/sequence_backend.png)
+
+#### 2. 后台类图
+![后台类图](./assets/class_backend/class_backend.png)
+
+#### 3. 客户端逻辑
+![客户端逻辑](./assets/sequence_frontend/sequence_frontend.png)
+
+#### 4. 客户端类图
+![客户端类图](./assets/class_frontend/class_frontend.png)
+
+-----
+
+## 系统要求
+
+### 硬件要求
+
+- CPU: 双核处理器及以上（小魔法师的大脑要够聪明哟~）
+- 内存: 4GB RAM 及以上（魔法背包要够大才能装下数据呀~）
+- 硬盘空间: 最少 1GB 可用空间（魔法仓库要留有余地哒~）
+- USB 端口: USB 2.0 或以上（魔法桥梁要够稳固哟~）
+
+### 软件要求
+
+| 操作系统 | 最低版本要求     | 魔法适配版本        |
+| -------- | ---------------- | ------------------- |
+| Windows  | Windows 7 64 位  | 魔法兼容性测试通过~ |
+| macOS    | macOS 10.14      | 苹果魔法水晶球适配~ |
+| Linux    | Ubuntu 18.04 LTS | 开源魔法石板适配~   |
+
+
 ---
 
 ## 技术细节与极客思考

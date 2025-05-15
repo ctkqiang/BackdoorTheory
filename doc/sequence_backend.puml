@@ -1,0 +1,64 @@
+@startuml
+' === 序列图 ===
+title 木马后台服务序列图
+
+participant 用户
+participant trojan_socket as 服务器
+participant mnesia as 数据库
+participant inet as 网络
+participant file as 文件系统
+participant httpc as IP_API
+
+== 服务器启动 ==
+用户 -> 服务器: start()
+服务器 -> 服务器: print_banner() ' 打印横幅信息
+服务器 -> 服务器: getCurrentLocalIPAddr() ' 获取本地 IP 地址
+服务器 -> 网络: inet:getifaddrs() ' 获取网络接口地址
+网络 -->> 服务器: {ok, 接口列表} 或 {error, 原因}
+服务器 -> IP_API: httpc:request(get, "http://ip-api.com/json/...") ' 请求 IP 信息
+IP_API -->> 服务器: {ok, 响应} 或 {error, 原因}
+服务器 -> 服务器: log(info, ...) ' 记录启动日志
+服务器 -> 数据库: mnesia:start() ' 启动 Mnesia 数据库
+服务器 -> 服务器: gen_tcp:listen(端口, 选项) ' 监听指定端口
+服务器 -->> 用户: 服务器已启动
+
+== 客户端连接和数据处理 ==
+服务器 -> 服务器: accept_loop(监听套接字) ' 进入连接等待循环
+服务器 -->> 用户: 等待客户端连接
+用户 -> 网络: 发起 TCP 连接到服务器
+网络 -->> 服务器: {ok, 套接字}
+服务器 -> 服务器: handle_connection(套接字) ' 处理新的连接
+服务器 -> 网络: inet:peername(套接字) ' 获取客户端 IP 地址
+网络 -->> 服务器: {ok, 客户端IP}
+服务器 -> 服务器: log(info, "新的客户端连接...") ' 记录连接日志
+服务器 -> 服务器: receive_all(套接字) ' 开始接收数据
+服务器 -->> 用户: 等待来自客户端的数据
+用户 -> 网络: 发送数据 "[DATA]客户端数据..."
+网络 -->> 服务器: {ok, <<...>>} ' 接收到二进制数据
+服务器 -> 服务器: unicode:characters_to_list(<<...>>, utf8) ' 解码为 UTF-8 字符串
+服务器 -> 服务器: string:find("[DATA]", ...) ' 查找数据标记
+服务器 -> 服务器: string:split("...", "[DATA]") ' 分割数据
+服务器 -> 服务器: calendar:local_time() ' 获取当前时间
+服务器 -> filename:join(...) ' 构建文件名
+服务器 -> 文件系统: file:write_file(文件名, <<...>>) ' 写入数据到文件
+文件系统 -->> 服务器: ok 或 {error, 原因}
+服务器 -> 服务器: log(info, "数据已写入文件...") ' 记录文件写入日志
+服务器 -> 服务器: receive_all(套接字) ' 继续接收数据
+用户 -> 网络: 发送数据 "[COMMAND]get_screenshot" ' 发送命令
+网络 -->> 服务器: {ok, <<...>>}
+服务器 -> 服务器: unicode:characters_to_list(<<...>>, utf8)
+服务器 -> 服务器: string:find("[COMMAND]", ...) ' 查找命令标记
+服务器 -> 服务器: string:split("...", "[COMMAND]") ' 分割命令
+服务器 -> 服务器: handle_command("get_screenshot") ' 处理命令
+服务器 -> 服务器: log(info, "收到命令: get_screenshot") ' 记录命令日志
+' ... (命令处理逻辑在此处展开) ...
+服务器 -> 服务器: receive_all(套接字)
+用户 -> 网络: 关闭 TCP 连接
+网络 -->> 服务器: 连接已关闭
+服务器 -> 服务器: gen_tcp:close(套接字) ' 关闭客户端套接字
+服务器 -> 服务器: log(info, "客户端连接已关闭") ' 记录连接关闭日志
+
+== 服务器关闭 (隐式) ==
+' (序列图未显式显示关闭过程，但通常涉及关闭监听套接字)
+
+@enduml

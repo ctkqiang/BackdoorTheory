@@ -1,0 +1,140 @@
+@startuml
+' === 类图 ===
+title 木马后台服务类图 (改进视图)
+
+' 样式设置
+skinparam class {
+  BackgroundColor #FFFFFF ' 白色背景
+  BorderColor #6C8EBF  ' 浅蓝色边框
+  ArrowColor #6C8EBF    ' 箭头颜色
+  FontName Arial          ' 使用 Arial 字体
+  Shadowing false      ' 无阴影
+  StereotypeFontColor #000000 '构造型字体颜色
+  FontStyle Bold
+}
+skinparam package {
+  FontName Arial
+  BorderColor #6C8EBF  ' 浅蓝色边框
+  BackColor #E0E0E0  ' 浅灰色背景
+  FontColor #000000
+  FontStyle Bold
+}
+skinparam roundcorner 15    ' 更大的圆角
+skinparam note {
+    BackColor #f5f5dc
+    BorderColor #d3d3d3
+    FontColor #000000
+}
+
+' 核心组件
+package "Core Components" {
+  class trojan_socket {
+    - DEFAULT_NAME: string ' 默认名称
+    - DEFAULT_PORT: int ' 默认端口
+    - DEFAULT_IP: tuple ' 默认 IP 地址
+    - DEFAULT_BUFSIZE: int ' 默认缓冲区大小
+    - device_info: record ' 设备信息 (Erlang 记录)
+    - ANSI_RESET: string ' ANSI 重置码
+    - ANSI_COLOR_CODES: list ' ANSI 颜色码列表
+    + start() ' 启动服务
+    + create_schema() ' 创建数据库 schema
+    + create_table() ' 创建数据表
+    + print_banner() ' 打印启动横幅
+    + get_ip_information(IP) -> map ' 获取 IP 信息 (返回 Map)
+    + ip_to_string(IPTuple) -> string ' IP 元组转字符串
+    + write_file(Filename, Content) ' 写入文件
+    + random_color() -> string ' 生成随机颜色码
+    + log(Level, FormatString, Args) ' 记录日志消息
+    + get_current_local_ip_addr() -> list ' 获取本地 IP 地址列表
+    + extract_value(Binary, Key) -> string ' 从二进制数据提取值
+    - handle_connection(Socket) ' 处理客户端连接
+    - handle_command(Command) ' 处理客户端命令
+    - receive_all(Socket) ' 接收客户端数据
+    - accept_loop(ListenSocket) ' 接受客户端连接
+  }
+  note as TrojanSocketNote
+    核心套接字类，负责处理网络通信、
+    命令解析和数据交换。
+  end note
+  
+
+  enum LogLevel {
+    info ' 信息级别
+    warning ' 警告级别
+    error ' 错误级别
+  }
+  trojan_socket --|> LogLevel : "uses" ' 使用日志级别枚举
+  trojan_socket --+ TrojanSocketNote
+  
+
+}
+
+' 数据库组件
+package "Database" {
+  class mnesia {
+    + start() ' 启动 Mnesia
+    + create_schema(Nodes) ' 创建数据库 schema
+    + create_table(TableName, Options) ' 创建数据表
+    + read(TableName, Key, LockType) -> list ' 读取数据 (返回列表)
+    + write(TableName, Value) -> "ok" | "{error, Reason}" ' 写入数据 (返回状态)
+    + delete(TableName, Key) -> "ok" | "{error, Reason}" ' 删除数据 (返回状态)
+  }
+    note as MnesiaNote
+    Erlang 内置的分布式数据库，
+    用于存储设备信息和配置。
+  end note
+  mnesia --+ MnesiaNote
+  
+}
+
+' 网络组件
+package "Network" {
+  class inet {
+    + getifaddrs(): "{ok, list}" | "{error, Reason}" ' 获取网络接口地址
+    + peername(Socket): "{ok, tuple}" | "{error, Reason}" ' 获取连接对端信息
+  }
+  class httpc {
+    + request(Method, URL, Headers, Options): "{ok, Response}" | "{error, Reason}" ' 发送 HTTP 请求
+  }
+    note as NetworkNote
+    处理网络相关的操作，
+    包括 IP 地址获取和 HTTP 请求。
+  end note
+  inet --+ NetworkNote
+  httpc --+ NetworkNote
+  
+}
+
+' 文件系统组件
+package "File System" {
+  class file {
+    + write_file(Filename, Content, Options): "ok" | "{error, Reason}" ' 写入文件
+    + read_file(Filename) -> "{ok, binary}" | "{error, Reason}" ' 读取文件
+    + delete_file(Filename) -> "ok" | "{error, Reason}" ' 删除文件
+  }
+    note as FileNote
+    提供文件读写和删除功能。
+  end note
+  file --+ FileNote
+  
+}
+
+' 关系 (简化表示)
+trojan_socket --> mnesia : "uses" ' 使用 Mnesia 数据库
+trojan_socket --> inet : "uses" ' 使用 inet 网络模块
+trojan_socket --> file : "uses" ' 使用 file 文件模块
+trojan_socket --> httpc : "uses" ' 使用 httpc 客户端
+
+' 添加一些图例说明 (可选)
+legend top
+  |= 符号 |= 说明 |
+  | --- | --- |
+  | Class |  类  |
+  | Abstract Class | 抽象类 |
+  | Interface |  接口  |
+  | Enum | 枚举 |
+  | Package | 包 |
+  | note |  注释  |
+endlegend
+
+@enduml

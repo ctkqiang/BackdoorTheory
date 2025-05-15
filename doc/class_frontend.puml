@@ -1,0 +1,127 @@
+@startuml
+' === 类图 ===
+title 假Deepseek 应用类图 (改进版)
+
+' 样式调整 (可选，根据需要调整)
+skinparam class {
+  BackgroundColor #FFFFFF  ' 白色背景
+  BorderColor #888888    ' 灰色边框
+  ArrowColor #888888      ' 灰色箭头
+  FontName Arial          ' 使用 Arial 字体
+}
+skinparam package {
+    FontName Arial
+    BorderColor #888888
+    BackColor #EEEEEE
+}
+
+package "应用核心" {
+  class 假Deepseek {
+      - appname: str ' 应用名称
+      - version: str ' 版本号
+      - url: str ' 应用 URL
+      - default_port: int ' 默认监听端口
+      - default_ip: str ' 默认监听 IP
+      - listening_time: int ' 监听超时
+      - default_bufsize: int ' 默认缓冲区
+      - DNS: dict ' DNS 配置
+      - host: str ' 目标主机
+      + __init__() ' 构造函数
+      + start() ' 启动流程
+      + dangerZone() ' 后台操作
+      + getUserInfo() -> str ' 获取用户信息
+      + prompt_accept_terms() -> bool ' 用户协议
+      + check_network() -> bool ' 检查网络
+      + animated_print() ' 动画打印
+      + WARN() ' 打印警告
+  }
+  note as N1
+  假Deepseek 方法
+  ----
+  -  __init__(): 初始化
+  -  start(): 启动
+  -  dangerZone(): 后台
+  -  getUserInfo(): 用户信息
+  -  prompt_accept_terms(): 协议
+  -  check_network(): 网络
+  -  animated_print(): 动画
+  -  WARN(): 警告
+  -  get_public_ip(): 公网 IP
+  -  get_computer_model(): 电脑型号
+  -  get_os_version(): 系统版本
+  -  get_network_type(): 网络类型
+  -  get_computer_hostname(): 主机名
+  -  get_cpu_model(): CPU 型号
+  -  get_current_location_no_key(): 地理位置
+  -  capture_webcam_image_base64(): 摄像头图像
+  end note
+}
+
+package "系统交互" {
+  class socket {
+      + socket(...) ' 创建套接字
+      + connect(...) ' 连接
+      + sendall(...) ' 发送数据
+      + close() ' 关闭
+      + gethostname() ' 获取主机名
+  }
+  class platform {
+      + system() ' 操作系统
+      + version() ' 版本
+      + release() ' 发行版
+      + mac_ver() ' macOS 版本
+      + linux_distribution() ' Linux 发行版
+  }
+  class subprocess {
+      + check_output(...) ' 执行命令
+  }
+}
+
+package "多媒体" {
+  class cv2 {
+      + VideoCapture(...) ' 打开设备
+      + isOpened() ' 检查打开
+      + read() ' 读取帧
+      + release() ' 释放设备
+      + imencode(...) ' 编码图像
+  }
+  class base64 {
+      + b64encode(...) ' Base64 编码
+      + b64decode(...) ' Base64 解码
+  }
+}
+
+package "图形界面" {
+  class tkinter {
+      + Tk() ' 主窗口
+      + Menu(...) ' 菜单
+  }
+  class messagebox {
+      + showinfo(...) ' 信息框
+  }
+  class webview {
+      + create_window(...) ' WebView 窗口
+      + start() ' 启动 WebView
+  }
+}
+
+package "网络" {
+  class requests {
+      + get(...) ' HTTP GET
+  }
+}
+
+' 关系 (更简洁的表示)
+假Deepseek --> socket : uses
+假Deepseek --> platform : uses
+假Deepseek --> subprocess : uses
+假Deepseek --> cv2 : uses
+假Deepseek --> base64 : uses
+假Deepseek --> tkinter : uses
+假Deepseek --> messagebox : uses
+假Deepseek --> requests : uses
+假Deepseek --> webview : uses
+
+hide methods
+hide members
+@enduml

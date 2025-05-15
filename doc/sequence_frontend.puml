@@ -1,0 +1,108 @@
+@startuml
+' === 序列图 ===
+title 假Deepseek 应用序列图 (中文注释)
+
+participant 用户
+participant 假Deepseek as 应用
+participant socket as 套接字
+participant platform as 平台
+participant subprocess as 子进程
+participant cv2 as OpenCV库
+participant base64 as Base64库
+participant tkinter as Tkinter库
+participant messagebox as 消息框
+participant requests as 请求库
+participant webview as WebView库
+
+== 应用启动 ==
+用户 -> 应用: 运行 __main__
+应用 -> 应用: __init__() ' 初始化应用
+应用 -> 应用: prompt_accept_terms() ' 提示接受条款
+应用 -> 应用: animated_print(LAW) ' 动画打印法律声明
+用户 -->> 应用: 输入 "是" 或 "否"
+alt 用户接受条款
+    应用 -> 应用: check_network() ' 检查网络连接
+    应用 -> 套接字: socket.socket(AF_INET, SOCK_STREAM) ' 创建套接字
+    应用 -> 套接字: s.connect((应用.host, 53)) ' 连接到 DNS 服务器
+    套接字 -->> 应用: (连接成功 或 异常)
+    应用 -> 应用: print("✅ 网络连接正常")
+    应用 -> WebView库: webview.create_window(...) ' 创建 WebView 窗口
+    应用 -> 应用: dangerZone() ' 进入危险区域，执行后台操作
+    应用 -> 套接字: socket.socket(AF_INET, SOCK_STREAM) ' 创建新的套接字
+    应用 -> 套接字: s.connect((应用.default_ip, 应用.default_port)) ' 连接到指定 IP 和端口
+    应用 -> 应用: getUserInfo() ' 获取用户信息
+    应用 -> 应用: get_public_ip() ' 获取公网 IP
+    应用 -> 请求库: requests.get("https://api-ipv4.ip.sb/ip", timeout=5)
+    请求库 -->> 应用: 响应 (IP 地址)
+    应用 -> 应用: get_computer_hostname() ' 获取计算机主机名
+    应用 -> 套接字: socket.gethostname()
+    套接字 -->> 应用: 主机名
+    应用 -> 应用: get_computer_model() ' 获取计算机型号
+    alt Windows 系统
+        应用 -> 子进程: subprocess.check_output("wmic computersystem get model", ...)
+        子进程 -->> 应用: 输出 (型号)
+    else macOS 系统
+        应用 -> 子进程: subprocess.check_output(["system_profiler", "SPHardwareDataType"])
+        子进程 -->> 应用: 输出 (型号标识符)
+    else Linux 系统
+        应用 -> 子进程: subprocess.check_output(["dmidecode", "-s", "system-product-name"])
+        子进程 -->> 应用: 输出 (产品名称)
+    end
+    应用 -> 应用: get_os_version() ' 获取操作系统版本
+    应用 -> 平台: platform.system()
+    alt Windows 系统
+        应用 -> 平台: platform.version()
+        应用 -> 平台: platform.release()
+    else macOS 系统
+        应用 -> 平台: platform.mac_ver()
+    else Linux 系统
+        应用 -> 平台: platform.linux_distribution()
+    end
+    平台 -->> 应用: 操作系统版本信息
+    应用 -> 应用: get_network_type() ' 获取网络连接类型
+    应用 -> 平台: platform.system()
+    alt Windows 系统
+        应用 -> 子进程: subprocess.check_output("netsh wlan show interfaces", ...)
+        子进程 -->> 应用: 输出 (网络状态)
+    else macOS 系统
+        应用 -> 子进程: subprocess.check_output(["networksetup", "-getinfo", "Wi-Fi"])
+        子进程 -->> 应用: 输出 (IP 地址)
+    else Linux 系统
+        应用 -> 子进程: subprocess.check_output(["nmcli", "-t", "-f", "TYPE,STATE", "device"])
+        子进程 -->> 应用: 输出 (设备信息)
+    end
+    应用 -> 应用: get_current_location_no_key() ' 获取当前地理位置
+    应用 -> 请求库: requests.get("http://ip-api.com/json/?lang=zh-CN", timeout=5)
+    请求库 -->> 应用: 响应 (位置数据)
+    应用 -> 应用: capture_webcam_image_base64() ' 捕获摄像头图像并 Base64 编码
+    应用 -> OpenCV库: cv2.VideoCapture(0) ' 打开默认摄像头
+    OpenCV库 -->> 应用: 摄像头捕获对象
+    应用 -> OpenCV库: cap.read() ' 读取一帧图像
+    OpenCV库 -->> 应用: ret, frame
+    应用 -> OpenCV库: cap.release() ' 释放摄像头资源
+    alt 成功捕获图像
+        应用 -> OpenCV库: cv2.imencode(".jpg", frame) ' 编码为 JPEG
+        OpenCV库 -->> 应用: ret, buffer
+        应用 -> Base64库: base64.b64encode(buffer) ' Base64 编码
+        Base64库 -->> 应用: 编码后的图像 (bytes)
+        应用 -> 应用: decode("utf-8") ' 解码为字符串
+    else 捕获图像失败
+        应用 -> 应用: img_b64 = "Failed to capture webcam image"
+    end
+    应用 -> 套接字: s.sendall(userInfo.encode("utf-8")) ' 发送用户信息
+    套接字 -->> 应用: (数据发送成功 或 异常)
+    应用 -> 套接字: s.close() ' 关闭套接字
+    应用 -> WebView库: webview.start() ' 启动 WebView
+else 用户拒绝条款
+    应用 -> 应用: print("❌ 您必须接受条款才能继续使用...")
+    应用 -> 系统: exit(1) ' 退出程序
+end
+
+== 菜单交互 (帮助 -> 关于) ==
+用户 -> Tkinter库: 与 WebView 窗口交互
+用户 -> Tkinter库: 点击 "帮助" -> "关于"
+应用 -> 应用: show_about_dialog() ' 显示关于对话框
+应用 -> 消息框: messagebox.showinfo(...) ' 显示消息框
+消息框 -->> 用户: 显示 "关于 DeepSeek" 对话框
+
+@enduml
