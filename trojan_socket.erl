@@ -250,9 +250,19 @@ create_table() ->
         {type, set}
     ]).
 
+% 创建 Mnesia 数据库架构
+% 这个函数会在当前节点上创建一个新的 Mnesia 数据库架构
+% 在启动服务器之前需要先调用这个函数来初始化数据库环境哦～
 create_schema() ->
     mnesia:create_schema([node()]).
 
+% 写入文件的小助手函数～
+% 参数说明：
+%   - Filename: 要写入的文件名（带路径）
+%   - Content: 要写入的内容
+% 返回值：
+%   - ok: 写入成功
+%   - {error, Reason}: 写入失败，Reason 说明失败原因
 write_file(Filename, Content) ->
     case file:open(Filename, [append, write]) of
         {ok, ExportFile} ->
@@ -270,17 +280,17 @@ getCurrentLocalIPAddr() ->
         {ok, Addrs} ->
             % 遍历所有网卡接口，提取其中的 IP 地址
             IPs = lists:flatmap(fun({_IfName, Props}) ->
-                % 从属性列表中找到所有的 addr 项
+                
+            % 从属性列表中找到所有的 addr 项
                 lists:filtermap(fun
-                    ({addr, {A,B,C,D}}) when is_integer(A), is_integer(B), 
-                                            is_integer(C), is_integer(D) ->
+                    ({addr, {A,B,C,D}}) when is_integer(A), is_integer(B), is_integer(C), is_integer(D) ->
 
                         % 只保留 IPv4 地址，并且不要 127.0.0.1
                         case {A,B,C,D} of
                             {127,0,0,1} -> false;  % 过滤掉本地回环地址
                             _ -> {true, io_lib:format("~B.~B.~B.~B", [A,B,C,D])}  % 把IP转成点分格式的字符串～
                         end;
-                        
+
                     (_) -> false  % 忽略其他所有项
                 end, Props)
             end, Addrs),
