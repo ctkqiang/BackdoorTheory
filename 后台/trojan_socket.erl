@@ -153,48 +153,48 @@ handle_command(Command) ->
 receive_all(Socket) ->
     log(info, "等待接收数据，Socket: ~p", [Socket]),
    
-    case gen_tcp:recv(Socket, 0, 50000) of  % 50秒超时
-        {ok, <<>>} ->
-            % 收到空数据，继续等待
-            log(info, "收到空数据，继续等待", []),
-            receive_all(Socket);
+    case gen_tcp:recv(Socket, 0, 50000) of
         {ok, BinData} ->
             % 收到二进制数据
-            log(info, "收到二进制数据: ~p", [BinData]),
-            
-            % 尝试将二进制数据转换为字符串（支持中文）
-            case catch unicode:characters_to_list(BinData) of
-                Str when is_list(Str) ->
-                    log(info, "数据解码成功: ~s", [Str]),
+            case unicode:characters_to_list(BinData, utf8) of
+                {error, _, _} ->
+                    log(error, "数据解码失败", []),
+                    receive_all(Socket);
+                {incomplete, _, _} ->
+                    log(error, "不完整的UTF-8数据", []),
+                    receive_all(Socket);
+                DecodedStr when is_list(DecodedStr) ->
+                    log(info, "数据解码成功: ~ts", [DecodedStr]),
                     % 检查是否包含数据标记
-                    case string:find(Str, "[DATA]") of
+                    case string:find(DecodedStr, "[DATA]") of
                         nomatch ->
                             % 检查是否包含命令标记
-                            case string:find(Str, "[COMMAND]") of
+                            case string:find(DecodedStr, "[COMMAND]") of
                                 nomatch ->
                                     log(warning, "数据没有识别标签，忽略", []);
                                 _ ->
                                     % 提取并处理命令
-                                    [_, Command] = string:split(Str, "[COMMAND]"),
-                                    log(info, "发现命令: ~s", [Command]),
+                                    [_, Command] = string:split(DecodedStr, "[COMMAND]"),
+                                    log(info, "发现命令: ~ts", [Command]),
                                     handle_command(Command)
                             end;
                         _ ->
                             % 提取并保存数据
-                            [_, Data] = string:split(Str, "[DATA]"),
-                            log(info, "提取的数据: ~s", [Data]),
-                            % 生成带时间戳的文件名
+                            [_, Data] = string:split(DecodedStr, "[DATA]"),
+                            log(info, "提取的数据: ~ts", [Data]),
+                            % 生成带时间戳的文件名和完整路径
                             {{Y, Mo, D}, {H, Mi, S}} = calendar:local_time(),
                             Timestamp = io_lib:format(
                                 "~4..0w-~2..0w-~2..0w_~2..0w-~2..0w-~2..0w", 
                                 [Y, Mo, D, H, Mi, S]
                             ),
-                            Filename = lists:flatten(Timestamp) ++ "_data.txt",
-                            write_file(Filename, Data)
+                            % 使用完整路径
+                            FullPath = filename:join([
+                                filename:dirname(code:which(?MODULE)),
+                                lists:flatten(Timestamp) ++ "_data.txt"
+                            ]),
+                            write_file(FullPath, Data)
                     end,
-                    receive_all(Socket);
-                _ ->
-                    log(error, "数据解码失败", []),
                     receive_all(Socket)
             end;
         {error, timeout} ->
@@ -270,16 +270,15 @@ create_schema() ->
 % 返回值：
 %   - ok: 写入成功
 %   - {error, Reason}: 写入失败，Reason 说明失败原因
-write_file(Filename, Content) ->
-    case file:open(Filename, [append, write]) of
-        {ok, ExportFile} ->
-            ok = file:write(ExportFile, Content),
-            ok = file:write(ExportFile, "\n"),  % 保证每次写完都换行，清清楚楚
-            file:close(ExportFile),
-            ok;
+write_file(Filename, Data) ->
+    % 确保是二进制数据
+    BinData = unicode:characters_to_binary(Data, utf8),
+    % 使用 write 模式打开文件
+    case file:write_file(Filename, BinData, [write]) of
+        ok ->
+            log(info, "数据成功写入文件: ~ts", [Filename]);
         {error, Reason} ->
-            log(error, "无法打开文件 ~p 进行写入: ~p", [Filename, Reason]),
-            {error, Reason}
+            log(error, "写入文件失败 ~ts: ~p", [Filename, Reason])
     end.
 
 getCurrentLocalIPAddr() ->
