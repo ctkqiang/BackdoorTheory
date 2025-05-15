@@ -50,6 +50,8 @@
 -export([start/0]).
 -export([create_schema/0, create_table/0]).
 -export([
+    print_banner/0,
+    getIpInformation/1,
     ip_to_string/1,
     write_file/2, 
     random_color/0, 
@@ -221,6 +223,8 @@ accept_loop(ListenSocket) ->
 % start/0 函数现在变得更简洁啦，它负责开启监听，然后把招待客人的任务交给 accept_loop
 % 启动服务器
 start() ->
+    print_banner(),
+
     % 获取本地IP地址
     getCurrentLocalIPAddr(),
 
@@ -303,7 +307,10 @@ getCurrentLocalIPAddr() ->
                     log(warning, "咦？没找到可用的 IP 地址耶～", []);
                 _ ->
                     lists:foreach(fun(IP) ->
-                        log(info, "🎯 发现本地 IP 地址啦 >>> [http://~s:~p] <<<", [IP, ?DEFAULT_PORT])
+                        IPInfo = getIpInformation(IP),
+
+                        log(info, "🎯 发现本地 IP 地址啦 >>> [http://~s:~p] <<<", [IP, ?DEFAULT_PORT]),
+                        log(info, "🎯 :... ~p", [IPInfo])
                     end, IPs)
             end,
             IPs;
@@ -315,3 +322,37 @@ getCurrentLocalIPAddr() ->
     
 ip_to_string({A, B, C, D}) ->
     lists:flatten(io_lib:format("~p.~p.~p.~p", [A, B, C, D])).
+
+print_banner() ->
+    Text = "
+  ____              _     _                      
+ |  _ \\            | |   | |                     
+ | |_) | __ _ _ __ | |__ | | ___  ___ ___  _ __  
+ |  _ < / _` | '_ \\| '_ \\| |/ _ \\/ __/ _ \\| '_ \\ 
+ | |_) | (_| | | | | |_) | |  __/ (_| (_) | | | |
+ |____/ \\__,_|_| |_|_.__/|_|\\___|\\___\\___/|_| |_|                                                  
+",
+    io:format("~s~n", [Text]).
+
+getIpInformation(IP) -> 
+    URL = "http://ip-api.com/json/" ++ IP,
+    inets:start(),
+    case httpc:request(get, {URL, []}, [], []) of
+        {ok, {{_, 200, _}, _Headers, Body}} ->
+            % 解析JSON并提取关键信息
+            case jsx:decode(Body, [return_maps]) of
+                #{<<"country">> := Country, <<"status">> := Status, <<"isp">> := ISP, <<"lat">> := Lat, <<"lon">> := Lon} ->
+                    io:format("🌐 IP信息：国家=~s，状态=~s，ISP=~s，纬度=~p，经度=~p~n", 
+                        [Country, Status, ISP, Lat, Lon]),
+                    {ok, #{country => Country, status => Status, isp => ISP, lat => Lat, lon => Lon}};
+                _ ->
+                    io:format("⚠️ IP信息解析失败，原始数据：~s~n", [Body]),
+                    {error, parse_failed}
+            end;
+        {ok, {{_, Code, _}, _, _}} ->
+            io:format("⚠️ 请求失败，HTTP 状态码: ~p~n", [Code]),
+            {error, Code};
+        {error, Reason} ->
+            io:format("💥 请求出错啦：~p~n", [Reason]),
+            {error, Reason}
+    end.
