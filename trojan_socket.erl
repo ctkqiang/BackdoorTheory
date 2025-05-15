@@ -157,8 +157,8 @@ receive_all(Socket) ->
             % 收到二进制数据
             log(info, "收到二进制数据: ~p", [BinData]),
             
-            % 尝试将二进制数据转换为字符串
-            case catch binary_to_list(BinData) of
+            % 尝试将二进制数据转换为字符串（支持中文）
+            case catch unicode:characters_to_list(BinData) of
                 Str when is_list(Str) ->
                     log(info, "数据解码成功: ~s", [Str]),
                     % 检查是否包含数据标记
