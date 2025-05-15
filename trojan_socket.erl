@@ -56,7 +56,8 @@
     write_file/2, 
     random_color/0, 
     log/3,
-    getCurrentLocalIPAddr/0
+    getCurrentLocalIPAddr/0,
+    extract_value/2
 ]).
 
 % 定义默认配置参数
@@ -335,24 +336,53 @@ print_banner() ->
     io:format("~s~n", [Text]).
 
 getIpInformation(IP) -> 
-    URL = "http://ip-api.com/json/" ++ IP,
     inets:start(),
+    URL = "http://ip-api.com/json/" ++ IP,
     case httpc:request(get, {URL, []}, [], []) of
         {ok, {{_, 200, _}, _Headers, Body}} ->
-            % 解析JSON并提取关键信息
-            case jsx:decode(Body, [return_maps]) of
-                #{<<"country">> := Country, <<"status">> := Status, <<"isp">> := ISP, <<"lat">> := Lat, <<"lon">> := Lon} ->
-                    io:format("🌐 IP信息：国家=~s，状态=~s，ISP=~s，纬度=~p，经度=~p~n", 
-                        [Country, Status, ISP, Lat, Lon]),
-                    {ok, #{country => Country, status => Status, isp => ISP, lat => Lat, lon => Lon}};
+            Status = extract_value(Body, <<"\"status\":\"">>),
+            case Status of
+                "success" ->
+                    Country = extract_value(Body, <<"\"country\":\"">>),
+                    Isp     = extract_value(Body, <<"\"isp\":\"">>),
+                    Lat     = extract_value(Body, <<"\"lat\":">>),
+                    Lon     = extract_value(Body, <<"\"lon\":">>),
+                    {ok, #{country => Country, isp => Isp, lat => Lat, lon => Lon}};
                 _ ->
-                    io:format("⚠️ IP信息解析失败，原始数据：~s~n", [Body]),
-                    {error, parse_failed}
+                    Msg = extract_value(Body, <<"\"message\":\"">>),
+                    io:format("⚠️ IP查询失败，原因：~s~n", [Msg]),
+                    {error, Msg}
             end;
         {ok, {{_, Code, _}, _, _}} ->
-            io:format("⚠️ 请求失败，HTTP 状态码: ~p~n", [Code]),
+            io:format("⚠️ HTTP 请求失败，状态码：~p~n", [Code]),
             {error, Code};
         {error, Reason} ->
-            io:format("💥 请求出错啦：~p~n", [Reason]),
+            io:format("💥 请求出错：~p~n", [Reason]),
             {error, Reason}
+    end.
+
+extract_value(Binary, Key) ->
+    % 保证 Binary 一定是二进制
+    Bin = case is_binary(Binary) of
+        true -> Binary;
+        false -> list_to_binary(Binary)
+    end,
+    case binary:match(Bin, Key) of
+        {Start, _Len} ->
+            % 计算剩余长度，避免越界
+            RemainingLen = byte_size(Bin) - (Start + byte_size(Key)),
+            % 取剩余部分，而不是固定的64字符
+            AfterKey = binary:part(Bin, Start + byte_size(Key), RemainingLen),
+            End = case binary:match(AfterKey, <<",">>) of
+                      {Pos, _} -> Pos;
+                      nomatch ->
+                          case binary:match(AfterKey, <<"\"">>) of
+                              {Pos2, _} -> Pos2;
+                              _ -> RemainingLen
+                          end
+                  end,
+            Clean = binary:part(AfterKey, 0, End),
+            string:trim(binary_to_list(Clean), both, "\"");
+        nomatch ->
+            "N/A"
     end.
