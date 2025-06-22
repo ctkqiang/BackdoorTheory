@@ -99,6 +99,13 @@ Erlang/OTP 27 [erts-15.2.6] [source] [64-bit] [smp:8:8] [ds:8:8:10] [async-threa
 
 ![erlang_demo](./assets/erl_demo.png)
 
+### Docker:
+
+```bash
+docker pull ctkqiang/trojan-server:latest
+docker run -p 8888:8888 --rm ctkqiang/trojan-server:lates
+```
+
 ### 客户端
 
 - 运行 Python 客户端（需提前安装依赖）
